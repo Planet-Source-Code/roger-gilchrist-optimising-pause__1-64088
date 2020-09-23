@@ -1,0 +1,89 @@
+Optimising Pause
+
+Optimisation is not always about speed. The no-API Pause routine many people use is an example of this. Obviously a Pause should not be longer than you ask for so the more accurately the routine can detect the pause is complete the better it is. The routine gains accuracy because it spends less time working and more detecting. This is a very minor optimisation but the approach will help you in other optimisation work. 
+
+BTW Just in case you don't do it already:
+A. Always use 'Option Explicit' 
+B. Run Code in the IDE using Ctrl+F5 (also known as 'run with full compile'). 
+This engages VB's full debugging mode and will deliver you right to the problem. Note your code may still be rubbish but it will be running rubbish. What is detected are violations of VB rules that would make the code fail to compile and undeclared variables (if you are using Option Explicit). In VB1-3 'run with full compile' was very slow and people often avoided it but in later VBs the delay on even huge projects is very small and definitely worthwhile. 
+
+
+Many people use a simple Pause routine like this
+
+Sub Pause(interval)                             '1, 2, 3
+ Dim Current                                    '1, 3
+ Current = Timer
+ Do While Timer - Current < Val(interval)       '4, 5 
+  DoEvents
+ Loop
+End Sub
+
+It works but......
+
+Optimisation here is aimed not so much at speed but accuracy. The improvements in speed mean that the Pause will be more accurate as the Do Loop will test the exit condition more often. 
+The times in the demo code show that the optimised versions exit closer to the requested time than the unoptimised version. 
+The slight excess over the requested time is the result of running the For loop and calculating the time to display on the commandbutton, writing to Control Captions also takes a tiny bit of time.
+
+------------------------------------
+1. Untyped Variables 
+Untyped 'Interval' and 'Current' will default to VB's largest Type; Variant. 
+Moving a Variant around in memory is slow; VB has to check that the data can fit into some known Type, and is being used appropriately for that Type and if the Type has changed. It is legal but often messy to change the contents of a Variant from a simple number to a string, an array or an entire Form. If you need 2 different Types use 2 different variables.
+EG 
+Dim X
+X = 5
+A = X + 4
+X = Split("Fred and Wilma")
+A = X + 4
+
+is going to crash because the while the initial 'A = X + 4' will work (VB works out that X is numeric) it will crash in the second case because you can't use addition on an array. Obviously in the example this is easy to detect by eye but in more complex code it may be difficult to spot the bug. 
+If you had declared X as Long then VB IDE would spot that you can't pack an array into a Long and complain. (Assuming 'Option Explicit' and Ctrl+F5)
+
+Using a Type such as Double tells VB that it only needs to perform a single test on the data; is the value in range for that Type.
+
+NOTE see the comments in Command4_Click and PauseLong in the demo code for why the faster Long should not be used in this routine. 
+
+------------------------------------
+2. ByVal
+ByVal If you pass a variable ByVal then VB knows that you are not going to try to return a value so doesn't generate the support code to do so.
+------------------------------------ 
+3. Readability. 
+Not a running optimisation but readable code is easier to maintain.  
+If you come back to code in 6 months you are going to need a bit longer to figure out that 'Interval' is not the same as the Timer Property Interval (although it may be thought of as related) and 'Current' is actually the time that the routine will end. 
+It is better to use names that explain themselves. 
+It also helps if the name tells you the Type of the variable so you don't have to find the declaration to check it (not a major problem in this code but a good principle). 
+So I changed the Parameter variable name to dblInterval showing its Type as well as making it clear that it is not the VB Property. The Dim variable name (previously 'Current') reflects what it is holding 'dblEndTime'.
+------------------------------------
+4. Doing Math takes time. 
+Look at the line
+ Do While Timer - Current < Val(interval)
+
+A. There is no point in The Val(Interval) which simple converts a numeric value to a numeric value and VB is perfectly happy to do meaningless conversions but it takes time....
+ Do While Timer - Current < interval
+
+B. First optimisation is to change to Addition, which is faster than Subtraction
+
+ Do While Timer  < interval + Current
+
+C. Now you should see that 'interval + Current' will always give the same answer so repeatedly recalculating it is a waste of time. Move the calculation outside the loop.
+ Current = interval + Current
+ Do While Timer  < Current
+ (see point 3 for why I rename 'Current' in the optimised code below.)
+------------------------------------
+
+5. I did some simple tests (see the demo code) and 'dblEndTime > Timer' seems to be slightly faster than 'Timer < dblEndTime' but this may be an artefact of my test rig.
+
+------------------------------------
+The fully(?) optimised version is this
+
+Public Sub Pause(ByVal dblInterval As Double)   '1, 2, 3
+  Dim dblEndTime As Double                      '1, 3
+  dblEndTime = Timer + dblInterval              '4 
+  Do While dblEndTime > Timer                   '5 
+    DoEvents
+  Loop
+
+End Sub
+
+------------------------------------
+Conclusion:
+While the chances of anyone noticing this improved accuracy are vanishingly small the habit of optimising by Type-casting and avoiding repetition are worth developing. 
